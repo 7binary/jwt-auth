@@ -12,7 +12,7 @@ export const App: React.FC = observer(() => {
   const store = useStore();
 
   useEffect(() => {
-    store.checkAuth();
+    store.bootstrapAuth();
   }, [store]);
 
   return (

@@ -4,13 +4,13 @@ import { User } from 'src/models';
 import { authHttp, AuthParams, Http } from 'src/http';
 
 export class Store {
-  static tokenKey = 'jwToken';
+  static tokenKey = 'jwt';
 
   user: User | null = null;
   isAuth = false;
   isLoading = false;
 
-  async authenticateUser(token: string, user: User) {
+  authenticateUser(token: string, user: User) {
     localStorage.setItem(Store.tokenKey, token);
     this.setAuth(true);
     this.setUser(user);
@@ -36,43 +36,52 @@ export class Store {
 
   async register(params: AuthParams) {
     const { accessToken, user } = await authHttp.registration(params);
-    await this.authenticateUser(accessToken, user);
+    this.authenticateUser(accessToken, user);
   }
 
-  async checkAuth() {
+  async bootstrapAuth() {
     const token = localStorage.getItem(Store.tokenKey);
-    if (!token) {
-      return false;
-    }
+    token ? Http.setToken(token) : Http.unsetToken();
 
-    Http.setToken(token);
     Http.setOnError(axiosInstance => async (error) => {
       if (error.config && error.response?.status === 401 && !error.config.__isRetry) {
         error.config.__isRetry = true;
-        const { accessToken, user } = await authHttp.refresh();
-        await this.authenticateUser(accessToken, user);
-        error.config.headers.Authorization = `Bearer ${accessToken}`;
-        return axiosInstance.request(error.config);
+        try {
+          const { accessToken, user } = await authHttp.refresh();
+          this.authenticateUser(accessToken, user);
+          error.config.headers.Authorization = `Bearer ${accessToken}`;
+          return axiosInstance.request(error.config);
+        } catch (refreshError) {
+          if (refreshError.response?.status === 401) {
+            await this.logout();
+          } else {
+            console.error(refreshError);
+          }
+        }
       }
       throw error;
     });
-    this.setLoading(true);
 
-    try {
-      const { accessToken, user } = await authHttp.refresh();
-      await this.authenticateUser(accessToken, user);
-    } finally {
-      this.setLoading(false);
+    if (token) {
+      this.setLoading(true);
+      try {
+        const { accessToken, user } = await authHttp.refresh();
+        this.authenticateUser(accessToken, user);
+      } finally {
+        this.setLoading(false);
+      }
     }
-    return true;
   }
 
   async logout() {
-    await authHttp.logout();
-    localStorage.removeItem(Store.tokenKey);
-    this.setAuth(false);
-    this.setUser(null);
-    Http.unsetToken();
+    try {
+      await authHttp.logout();
+    } finally {
+      Http.unsetToken();
+      localStorage.removeItem(Store.tokenKey);
+      this.setAuth(false);
+      this.setUser(null);
+    }
   }
 
   constructor() {

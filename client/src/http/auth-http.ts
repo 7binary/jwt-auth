@@ -37,3 +37,4 @@ class AuthHttp extends Http {
 }
 
 export const authHttp = new AuthHttp();
+
