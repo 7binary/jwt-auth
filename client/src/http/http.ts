@@ -17,11 +17,11 @@ const defaultConfig: AxiosRequestConfig = {
 export abstract class Http {
   public baseURL: string;
   protected axiosInstance: AxiosInstance;
-  protected onErrorId?: number;
+  protected onErrorId: number | null = null;
 
   protected static instances: {[key: string]: Http} = {};
   protected static token: string | null = null;
-  protected static onError: OnError | undefined;
+  protected static onError?: OnError;
 
   constructor(overrideConfig: AxiosRequestConfig = {}) {
     const config: AxiosRequestConfig = Object.assign({}, defaultConfig, overrideConfig);
@@ -57,10 +57,11 @@ export abstract class Http {
     Http.onError = onError;
     Object.keys(Http.instances).forEach(key => {
       const http = Http.instances[key];
-      if (http.onErrorId === undefined) {
-        const errorHandler = onError(http.axiosInstance);
-        http.onErrorId = http.axiosInstance.interceptors.response.use(config => config, errorHandler);
+      if (http.onErrorId !== null) {
+        http.axiosInstance.interceptors.response.eject(http.onErrorId);
       }
+      const errorHandler = onError(http.axiosInstance);
+      http.onErrorId = http.axiosInstance.interceptors.response.use(config => config, errorHandler);
     });
   }
 
@@ -68,22 +69,25 @@ export abstract class Http {
     Http.onError = undefined;
     Object.keys(Http.instances).forEach(key => {
       const http = Http.instances[key];
-      if (http.onErrorId !== undefined) {
+      if (http.onErrorId !== null) {
         http.axiosInstance.interceptors.response.eject(http.onErrorId);
+        http.onErrorId = null;
       }
     });
   }
 
   setOnError(onError: OnError) {
-    if (this.onErrorId === undefined) {
-      const errorHandler = onError(this.axiosInstance);
-      this.onErrorId = this.axiosInstance.interceptors.response.use(config => config, errorHandler);
+    if (this.onErrorId !== null) {
+      this.axiosInstance.interceptors.response.eject(this.onErrorId);
     }
+    const errorHandler = onError(this.axiosInstance);
+    this.onErrorId = this.axiosInstance.interceptors.response.use(config => config, errorHandler);
   }
 
   unsetOnError() {
-    if (this.onErrorId !== undefined) {
+    if (this.onErrorId !== null) {
       this.axiosInstance.interceptors.response.eject(this.onErrorId);
+      this.onErrorId = null;
     }
   }
 
