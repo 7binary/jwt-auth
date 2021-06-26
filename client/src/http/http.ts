@@ -32,7 +32,7 @@ export abstract class Http {
       if (Http.token) {
         this.axiosInstance.defaults.headers.common.Authorization = `Bearer ${Http.token}`;
       }
-      if (Http.onError && this.onErrorId === undefined) {
+      if (Http.onError && !this.onErrorId) {
         this.onErrorId = this.axiosInstance.interceptors.response.use(config => config, Http.onError);
       }
       Http.instances[config.baseURL!] = this;
